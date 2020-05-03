@@ -1,0 +1,20 @@
+Package: cdynfgeo
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Camille",
+           family = "Piponiot",
+           role = c("aut", "cre"),
+           email = "camille.piponiot@gmail.com",
+           comment = c(ORCID = "0000-0002-3473-1982"))
+Description: This package opens, homogenizes ForestGEO census data, and estimates aboveground biomass (and carbon) stocks and fluxes.
+License: GPL-3
+Depends: 
+    R (>= 3.1)
+Imports: 
+    taxize,
+    data.table (>= 1.12.8)
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.0
