@@ -24,8 +24,6 @@
 #'
 #' @export
 #'
-#'
-#'
 prepare_data <- function(path,
                          site,
                          stem = TRUE,
@@ -38,7 +36,7 @@ prepare_data <- function(path,
 )
 {
   print(paste("Preparing", site, "data."))
-
+  data("site_info")
   # load packages (and install the ones are not yet installed)
   # do not show package loading messages
   if (!suppressMessages(require(data.table))) {
@@ -108,7 +106,7 @@ prepare_data <- function(path,
   DT$exactdate = as.character(DT$exactdate) ## convert to always have characters
 
   # calculate census year
-  census_year = DT[, .(year = get_census_year(exactdate)), .(census)]
+  census_year = DT[, .(year = get_census_year(exactdate)), by = census]
   DT = merge(DT, census_year)
 
   # empty DFstatus
