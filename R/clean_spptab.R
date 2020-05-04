@@ -68,58 +68,9 @@ clean_spptab = function(path_spp = getwd()) {
   spptab = subset(spptab,!(sp_site %in% duplsp & is.na(species)))
   spptab =  unique(spptab)[, c("site", "sp", "name", "genus")]
 
-  ## gymnosperms
-  all = taxize::tpl_families()
-  gymno = all[all$group == "Gymnosperms", ]
-  y = taxize::get_tsn(gymno$family)
-  gymno_genus = taxize::downstream(y, downto = "genus", db = "tsn")
-  gymno_genus = do.call(rbind, gymno_genus)
-  gymno_genus = subset(gymno_genus, tsn != "No data")
-  spptab[(genus %in% gymno_genus$taxonname), taxo_group := "gymno"]
-
-  ## tree ferns
-  spptab[(genus == "Cyathea"), taxo_group := "fern"]
-
-  ## palm species
-  palm_genus = taxize::get_tsn('Arecaceae')
-  palm_genus = taxize::downstream(palm_genus, downto = "genus", db = "tsn")
-  palm_genus = do.call(rbind, palm_genus)
-  palm_genus = subset(palm_genus, tsn != "No data")
-  spptab[(
-    genus %in% c(
-      palm_genus$taxonname,
-      "Astrocaryum",
-      "Cryosophila",
-      "Geonoma",
-      "Oenocarpus",
-      "Socratea",
-      "Synechanthus"
-    )
-  )]$taxo_group = "palm"
-
-  ## strangler figs
-  str_sp = c(
-    "Ficus matiziana",
-    "Ficus citrifolia",
-    "Ficus colubrinae",
-    "Ficus costaricana",
-    "Ficus nymphaeifolia",
-    "Ficus pertusa",
-    "Ficus popenoei"
-  )
-  spptab[name %in% str_sp]$taxo_group = "strangler"
-
-  ## vines
-  vines_genus = c(
-    "Campsis",
-    "Hedera",
-    "Lonicera",
-    "Parthenocissus",
-    "Smilax",
-    "Toxicodendron",
-    "Vitis"
-  )
-  spptab[(genus %in% vines_genus)]$taxo_group = "vine"
+  ## add taxonomic groups
+ data("taxoGroups")
+ spptab = merge(spptab, taxoGroups, by = "genus", all.x = TRUE)
 
   spptab =  unique(spptab)[, c("site", "sp", "name", "taxo_group")]
   return(spptab)
