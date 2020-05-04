@@ -72,7 +72,7 @@ clean_spptab = function(path_spp = getwd()) {
 
   ## add taxonomic groups
   data("taxoGroups")
-  spptab = merge(spptab, taxoGroups, by = "genus", all.x = TRUE)
+  spptab = merge(spptab, taxoGroups[, c("genus", "taxo")], by = "genus", all.x = TRUE)
 
   spptab =  unique(spptab)[, c("site", "sp", "name", "taxo")]
   return(spptab)

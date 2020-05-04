@@ -140,7 +140,7 @@ prepare_data <- function(path,
     DT$sp = DT$spcode
 
   # change all "" with NA in stem tags
-  DT[DT$stemtag == ""]$stemtag = NA
+  DT$stemtag[DT$stemtag == ""] = NA
 
   keep_columns = c("site", "census", "year", keep_columns)
   DT = DT[, which(colnames(DT) %in% keep_columns), with = FALSE]
