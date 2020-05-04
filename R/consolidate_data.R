@@ -14,6 +14,7 @@
 #' @param relat_change logical value: should the decrease and increse values be relative
 #'  (proportion of total dbh) or absolute values (in mm)? Default is `FALSE`.
 #' @param species_path character string specifying the the directory in which the species tables are. Default is the current directory.
+#' @param print_time Logical value: should the running time be printed? Default is `FALSE`.
 #'
 #' @return A data.table (data.frame) with all relevant variables.
 #'
@@ -30,45 +31,40 @@ consolidate_data <- function(df,
                              acc_decr = -5,
                              acc_incr = 50,
                              relat_change = FALSE,
-                             species_path = getwd()) {
+                             species_path = getwd(),
+                             print_time = FALSE) {
 
   library(data.table)
   #### remove unecessary rows ####
-  t0 = Sys.time()
+  if (print_time) t0 = Sys.time()
   df$status = c("D", "A")[1 + grepl("alive|broken", df$dfstatus)]
   print("Changed status to A (alive) or D (dead).")
-  print(round(Sys.time() - t0, 1))
-  t0 = Sys.time()
+  if (print_time) print(round(Sys.time() - t0, 1)); t0 = Sys.time()
 
   df = subset(df, !is.na(dbh) & dbh >= 10 & status == "A")
   print("Removed non-observations (no dbh, dead stems, stems < 10 mm).")
-  print(round(Sys.time() - t0, 1))
-  t0 = Sys.time()
+  if (print_time) print(round(Sys.time() - t0, 1)); t0 = Sys.time()
 
   #### make unique tree info table ####
   ## keep the most recent info
   df$treeid = as.character(df$treeid)
-  treeinfo = df[order(year),
-                .(quadrat = last(quadrat[!is.na(quadrat)]),
-                  gx = last(gx[!is.na(gx)]),
-                  gy = last(gy[!is.na(gy)]),
-                  sp = last(sp[!is.na(sp)])),
-                by = treeid]
+  df = df[order(df$year, decreasing = TRUE),]
+  treeinfo = unique(df[, c("treeid", "quadrat", "gx", "gy", "sp")])
+  treeinfo = treeinfo[!duplicated(treeinfo$treeid),]
   df = merge(df[,-c("quadrat", "gx", "gy", "sp")], treeinfo, by = "treeid")
 
   #### add accepted species name ####
   if (!("species_clean.rda" %in% list.files(species_path))) {
     # get clean version of species table (no typo nor duplicate species code)
     species = clean_spptab(species_path)
-    save(species, file = paste0(species_path, "species_clean.rda"))
+    save(species, file = paste0(species_path, "/species_clean.rda"))
   } else
-    load(paste0(species_path, "species_clean.rda"))
+    load(paste0(species_path, "/species_clean.rda"))
   df = merge(df, species, by = c("sp", "site"), all.x = TRUE)
   # df[, genus := tstrsplit(name, " ")[[1]]]
   # df[, species := tstrsplit(name, " ")[[2]]]
   print("Added species name.")
-  print(round(Sys.time() - t0, 1))
-  t0 = Sys.time()
+  if (print_time) print(round(Sys.time() - t0, 1)); t0 = Sys.time()
 
   #### taper correction ####
   df[, dbhc := dbh] # dbhc: corrected dbh
@@ -76,8 +72,7 @@ consolidate_data <- function(df,
     df[, dbhtc := taper(dbh, hom)]
     df[, dbhc := dbhtc]
     print("Applied taper correction.")
-    print(round(Sys.time() - t0, 1))
-    t0 = Sys.time()
+    if (print_time) print(round(Sys.time() - t0, 1)); t0 = Sys.time()
     # add uncertainty on dbh measurement to propagate later
   }
 
@@ -103,8 +98,7 @@ consolidate_data <- function(df,
     df[treeid %in% need_stemmatch, stemid := paste(treeid, stemid2, sep =
                                                      "_")]
     print("Matched stems in multistem individuals (in column stemid).")
-    print(round(Sys.time() - t0, 1))
-    t0 = Sys.time()
+    if (print_time) print(round(Sys.time() - t0, 1)); t0 = Sys.time()
 
     ## broken below: new stem id (add 'b' at the end for all subsequent censuses)
     setorder(df, stemid, year)
@@ -162,7 +156,7 @@ consolidate_data <- function(df,
     x = df_census[, .(dbhc = replace_missing(dbhc, year, dfgrowth), year), .(stemid)]
     df = merge(df[,-"dbhc"], x, by = c("stemid", "year"), all = TRUE)
     print("Interpolated DBH for missing trees.")
-    print(round(Sys.time() - t0, 1))
+    if (print_time) print(round(Sys.time() - t0, 1)); t0 = Sys.time()
   }
 
   #### correct abnormal dbh changes ####
@@ -183,13 +177,12 @@ consolidate_data <- function(df,
     df[, dbhc := dbhcc]
     df[dbhc < 10, dbhc := NA]
     print("Corrected excessive dbh changes.")
-    print(round(Sys.time() - t0, 1))
-    t0 = Sys.time()
+    if (print_time) print(round(Sys.time() - t0, 1)); t0 = Sys.time()
   }
 
   # #### merge tree and census info ####
   df_tree = df[, c("site", "quadrat", "treeid", "gx", "gy",
-                   "sp", "name", "taxo_group")]
+                   "sp", "name", "taxo")]
   df_tree = subset(df_tree, !is.na(sp))
   df_tree = unique(df_tree)
 
@@ -264,62 +257,62 @@ interpolate = function(x, xs, ys) {
 
 
 
-# growth_stats = function(dbh,
-#                         year,
-#                         stemid,
-#                         site,
-#                         name,
-#                         relat_change = FALSE) {
-#   data = data.table(site, stemid, name, dbh, year)
-#   data[, genus := tstrsplit(name, " ")[[1]]]
-#   data[, species := tstrsplit(name, " ")[[2]]]
-#
-#   # remove individuals with only one measurement (no diff(dbh))
-#   multi = unique(stemid[duplicated(stemid)])
-#   setorder(data, stemid, year)
-#   dataG = data[stemid %in% multi]
-#   if (relat_change) {
-#     dataG = dataG[, .(dG = (dbh[-1] / dbh[-length(dbh)]) ^ (1 / diff(year)) -
-#                         1,
-#                       year = year[-1]),
-#                   .(stemid, name, genus, species, site)]
-#   } else {
-#     dataG = dataG[, .(dG = diff(dbh) / diff(year), year = year[-1]),
-#                   .(stemid, name, genus, species, site)]
-#   }
-#
-#   dfnames = unique(data[,c("site", "name", "genus")])
-#
-#   # species growth rate (>20 individual measurements)
-#   dfspecies = dataG[!is.na(species), .(
-#     Gexp = median(dG), ## use median to minimise impact of measurement errors
-#     sdGexp = sd(dG),
-#     N = length(dG),
-#     level = "species"
-#   ),
-#   .(site, genus, name)]
-#   dfspecies = subset(dfspecies, N >= 20)[, -"N"]
-#
-#   # genus growth rate (>20 individual measurements)
-#   dfgenus = dataG[!is.na(genus), .(
-#     Gexp = median(dG),
-#     sdGexp = sd(dG),
-#     N = length(dG),
-#     level = "genus"
-#   ),
-#   .(genus)]
-#   dfgenus = subset(dfgenus, N >= 20)[, -"N"]
-#   dfgenus = merge(dfgenus, dfnames, by = "genus")
-#
-#   dfsite = dataG[, .(Gexp = median(dG),
-#                      sdGexp = sd(dG),
-#                      level = "site"), .(site)]
-#   dfsite = merge(dfsite, dfnames, by = "site")
-#
-#   dfgrowth = merge(dfnames, rbind(dfspecies, dfgenus, dfsite), all = TRUE)
-#   dfgrowth[is.na(Gexp)]$Gexp = mean(dataG$dG)
-#   dfgrowth[is.na(sdGexp)]$sdGexp = sd(dataG$dG)
-#   dfgrowth = dfgrowth[!duplicated(dfgrowth[, c("site", "name")])]
-#
-#   return(dfgrowth)
-# }
+growth_stats = function(dbh,
+                        year,
+                        stemid,
+                        site,
+                        name,
+                        relat_change = FALSE) {
+  data = data.table(site, stemid, name, dbh, year)
+  data[, genus := tstrsplit(name, " ")[[1]]]
+  data[, species := tstrsplit(name, " ")[[2]]]
+
+  # remove individuals with only one measurement (no diff(dbh))
+  multi = unique(stemid[duplicated(stemid)])
+  setorder(data, stemid, year)
+  dataG = data[stemid %in% multi]
+  if (relat_change) {
+    dataG = dataG[, .(dG = (dbh[-1] / dbh[-length(dbh)]) ^ (1 / diff(year)) -
+                        1,
+                      year = year[-1]),
+                  .(stemid, name, genus, species, site)]
+  } else {
+    dataG = dataG[, .(dG = diff(dbh) / diff(year), year = year[-1]),
+                  .(stemid, name, genus, species, site)]
+  }
+
+  dfnames = unique(data[,c("site", "name", "genus")])
+
+  # species growth rate (>20 individual measurements)
+  dfspecies = dataG[!is.na(species), .(
+    Gexp = median(dG), ## use median to minimise impact of measurement errors
+    sdGexp = sd(dG),
+    N = length(dG),
+    level = "species"
+  ),
+  .(site, genus, name)]
+  dfspecies = subset(dfspecies, N >= 20)[, -"N"]
+
+  # genus growth rate (>20 individual measurements)
+  dfgenus = dataG[!is.na(genus), .(
+    Gexp = median(dG),
+    sdGexp = sd(dG),
+    N = length(dG),
+    level = "genus"
+  ),
+  .(genus)]
+  dfgenus = subset(dfgenus, N >= 20)[, -"N"]
+  dfgenus = merge(dfgenus, dfnames, by = "genus")
+
+  dfsite = dataG[, .(Gexp = median(dG),
+                     sdGexp = sd(dG),
+                     level = "site"), .(site)]
+  dfsite = merge(dfsite, dfnames, by = "site")
+
+  dfgrowth = merge(dfnames, rbind(dfspecies, dfgenus, dfsite), all = TRUE)
+  dfgrowth[is.na(Gexp)]$Gexp = mean(dataG$dG)
+  dfgrowth[is.na(sdGexp)]$sdGexp = sd(dataG$dG)
+  dfgrowth = dfgrowth[!duplicated(dfgrowth[, c("site", "name")])]
+
+  return(dfgrowth)
+}

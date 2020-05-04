@@ -29,7 +29,7 @@ clean_spptab = function(path_spp = getwd()) {
   spptab$species = data.table::tstrsplit(spptab$species, " ")[[1]]
 
   # remove undetermined species
-  spptab[species %in% c("sp.", "spp.", "sp")]$species = ""
+  spptab[spptab$species %in% c("sp.", "spp.", "sp")]$species = ""
   spptab[grep("[1-9]", species)]$species = ""
   spptab = subset(spptab,!grepl("nident", genus))
 
