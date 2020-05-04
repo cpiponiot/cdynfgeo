@@ -49,7 +49,7 @@ consolidate_data <- function(df,
   ## keep the most recent info
   df$treeid = as.character(df$treeid)
   treeinfo = df[order(year),
-                list(quadrat = last(quadrat[!is.na(quadrat)]),
+                .(quadrat = last(quadrat[!is.na(quadrat)]),
                   gx = last(gx[!is.na(gx)]),
                   gy = last(gy[!is.na(gy)]),
                   sp = last(sp[!is.na(sp)])),
@@ -119,8 +119,10 @@ consolidate_data <- function(df,
       broken = dcast(broken, stemid ~ nbreak, value.var = "year")
       df = merge(df, broken, by = c("stemid"), all = TRUE)
       df[!is.na(break1) & year >= break1, stemid := paste0(stemid, "b")]
-      df[!is.na(break2) & year >= break2, stemid := paste0(stemid, "b")]
-      df[!is.na(break3) & year >= break3, stemid := paste0(stemid, "b")]
+      if (!is.null(df$break2))
+        df[!is.na(break2) & year >= break2, stemid := paste0(stemid, "b")]
+      if (!is.null(df$break3))
+        df[!is.na(break3) & year >= break3, stemid := paste0(stemid, "b")]
     } else if (nrow(broken) > 0) {
       broken = broken[, .(ybreak = min(year)), .(stemid)]
       df = merge(df, broken, by = c("stemid"), all = TRUE)
@@ -128,7 +130,7 @@ consolidate_data <- function(df,
     }
   }
 
-  #### add growth statistics ####
+  ### add growth statistics ####
   dfgrowth = growth_stats(
     dbh = df$dbhc,
     year = df$year,
@@ -197,3 +199,127 @@ consolidate_data <- function(df,
 
   return(df)
 }
+
+
+taper <- function(dbh, hom, wsg = NULL) {
+  hom[is.na(hom)] = 1.3
+  # dbh <- round(dbh * exp(0.0247 * (hom - 1.3)), 1)
+  # new Cushman multisite equation
+  # DAB: diameter above buttress / same as dbh?
+  if (is.null(wsg)) {
+    b1 <- exp(-0.825 - 0.458 * log(dbh / 10) - 0.663 * log(hom))
+  } else {
+    b1 <- exp(-0.769 - 0.546 * log(dbh / 10) - 0.630 * log(hom) - 0.436 * log(wsg))
+  }
+  # b1 = -0.825 + -0.458*log(DAB) -0.663*log(HOM)
+  dbhc <- round(dbh * exp(b1 * (hom - 1.3)), 1)
+  # add uncertainty -> uncertainty on dbh -> error propagation in AGBmontecarlo
+  # change hom to 1.3?
+  return(dbhc)
+}
+
+replace_missing <- function(dbh, year, Gexp) {
+
+  # TODO check that there are at least 2 measurements
+  miss <- which(is.na(dbh))
+  nomiss <- which(!is.na(dbh))
+
+  if (length(miss) == 0){
+    return(dbh)
+  } else if (length(nomiss)==1) {
+    # Gexp: expected growth rate (based on species-
+    # or genus- or site- specific growth rates)
+    dbh[miss] = Gexp*(year[miss]-year[nomiss]) + dbh[nomiss]
+    return(dbh)
+
+  } else {
+    # for each missing value, select 2 closest measurements
+    # from which missing dbh value will be inferred
+    inf_years = sapply(miss, function (i) select_2years(i, nomiss))
+
+    xs = matrix(year[inf_years], nrow=2)
+    ys = matrix(dbh[inf_years], nrow=2)
+
+    dbh[miss] = interpolate(year[miss], xs, ys)
+  }
+  return(dbh)
+}
+
+select_2years = function(i, nomiss) {
+  if (i < min(nomiss)){
+    return(nomiss[1:2])
+  } else if (i > max(nomiss)) {
+    last = length(nomiss)
+    return(nomiss[(last-1):last])
+  } else {
+    return(c(max(nomiss[nomiss<i]),  min(nomiss[nomiss>i])))
+  }
+}
+
+interpolate = function(x, xs, ys) {
+  slope = diff(ys)/diff(xs)
+  intercept = ys[1,] - slope*xs[1,]
+  return(slope * x + intercept)
+}
+
+
+
+# growth_stats = function(dbh,
+#                         year,
+#                         stemid,
+#                         site,
+#                         name,
+#                         relat_change = FALSE) {
+#   data = data.table(site, stemid, name, dbh, year)
+#   data[, genus := tstrsplit(name, " ")[[1]]]
+#   data[, species := tstrsplit(name, " ")[[2]]]
+#
+#   # remove individuals with only one measurement (no diff(dbh))
+#   multi = unique(stemid[duplicated(stemid)])
+#   setorder(data, stemid, year)
+#   dataG = data[stemid %in% multi]
+#   if (relat_change) {
+#     dataG = dataG[, .(dG = (dbh[-1] / dbh[-length(dbh)]) ^ (1 / diff(year)) -
+#                         1,
+#                       year = year[-1]),
+#                   .(stemid, name, genus, species, site)]
+#   } else {
+#     dataG = dataG[, .(dG = diff(dbh) / diff(year), year = year[-1]),
+#                   .(stemid, name, genus, species, site)]
+#   }
+#
+#   dfnames = unique(data[,c("site", "name", "genus")])
+#
+#   # species growth rate (>20 individual measurements)
+#   dfspecies = dataG[!is.na(species), .(
+#     Gexp = median(dG), ## use median to minimise impact of measurement errors
+#     sdGexp = sd(dG),
+#     N = length(dG),
+#     level = "species"
+#   ),
+#   .(site, genus, name)]
+#   dfspecies = subset(dfspecies, N >= 20)[, -"N"]
+#
+#   # genus growth rate (>20 individual measurements)
+#   dfgenus = dataG[!is.na(genus), .(
+#     Gexp = median(dG),
+#     sdGexp = sd(dG),
+#     N = length(dG),
+#     level = "genus"
+#   ),
+#   .(genus)]
+#   dfgenus = subset(dfgenus, N >= 20)[, -"N"]
+#   dfgenus = merge(dfgenus, dfnames, by = "genus")
+#
+#   dfsite = dataG[, .(Gexp = median(dG),
+#                      sdGexp = sd(dG),
+#                      level = "site"), .(site)]
+#   dfsite = merge(dfsite, dfnames, by = "site")
+#
+#   dfgrowth = merge(dfnames, rbind(dfspecies, dfgenus, dfsite), all = TRUE)
+#   dfgrowth[is.na(Gexp)]$Gexp = mean(dataG$dG)
+#   dfgrowth[is.na(sdGexp)]$sdGexp = sd(dataG$dG)
+#   dfgrowth = dfgrowth[!duplicated(dfgrowth[, c("site", "name")])]
+#
+#   return(dfgrowth)
+# }

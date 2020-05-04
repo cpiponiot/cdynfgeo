@@ -35,7 +35,7 @@ prepare_data <- function(path,
                                           "agb", "brokenladder", "fire.code") # for Yosemite
 )
 {
-  library(data.table)
+
   print(paste("Preparing", site, "data."))
   data("site_info")
   # load packages (and install the ones are not yet installed)
@@ -107,8 +107,9 @@ prepare_data <- function(path,
   DT$exactdate = as.character(DT$exactdate) ## convert to always have characters
 
   # calculate census year
-  census_year = DT[, list(year = get_census_year(exactdate)), by = census]
-  DT = merge(DT, census_year)
+  census_year = tapply(DT$exactdate, DT$census, get_census_year)
+  census_year = data.frame(census = as.numeric(names(census_year)), year = census_year)
+  DT = merge(DT, census_year, by = "census")
 
   # empty DFstatus
   if (length(grep("status", colnames(DT)))==0)

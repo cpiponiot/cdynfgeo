@@ -17,16 +17,18 @@ clean_spptab = function(path_spp = getwd()) {
   if (!is.null(spptab$spcode))
     spptab[!is.na(spcode)]$sp = spptab[!is.na(spcode)]$spcode
 
-  nalatin = which(!is.na(spptab$genus) & !is.na(spptab$species) & is.na(spptab$latin))
-  spptab[nalatin]$latin = paste(spptab[nalatin]$genus, spptab[nalatin]$species)
-  spptab = subset(spptab, latin != "")
-  # some genus and species are missing (but are in the latin column)
-  spptab[is.na(genus)]$species = data.table::tstrsplit(spptab[is.na(genus)]$latin, " ")[[2]]
-  spptab[is.na(genus)]$genus = data.table::tstrsplit(spptab[is.na(genus)]$latin, " ")[[1]]
+  if (!is.null(spptab$latin)) {
+    nalatin = which(!is.na(spptab$genus) & !is.na(spptab$species) & is.na(spptab$latin))
+    spptab[nalatin]$latin = paste(spptab[nalatin]$genus, spptab[nalatin]$species)
+    spptab = subset(spptab, latin != "")
+    # some genus and species are missing (but are in the latin column)
+    spptab[is.na(genus)]$species = data.table::tstrsplit(spptab[is.na(genus)]$latin, " ")[[2]]
+    spptab[is.na(genus)]$genus = data.table::tstrsplit(spptab[is.na(genus)]$latin, " ")[[1]]
+  }
   # remove everything after species name
   spptab$species = data.table::tstrsplit(spptab$species, " ")[[1]]
 
-  # remove indetermined species
+  # remove undetermined species
   spptab[species %in% c("sp.", "spp.", "sp")]$species = ""
   spptab[grep("[1-9]", species)]$species = ""
   spptab = subset(spptab,!grepl("nident", genus))
@@ -69,10 +71,10 @@ clean_spptab = function(path_spp = getwd()) {
   spptab =  unique(spptab)[, c("site", "sp", "name", "genus")]
 
   ## add taxonomic groups
- data("taxoGroups")
- spptab = merge(spptab, taxoGroups, by = "genus", all.x = TRUE)
+  data("taxoGroups")
+  spptab = merge(spptab, taxoGroups, by = "genus", all.x = TRUE)
 
-  spptab =  unique(spptab)[, c("site", "sp", "name", "taxo_group")]
+  spptab =  unique(spptab)[, c("site", "sp", "name", "taxo")]
   return(spptab)
 
 }
