@@ -32,6 +32,7 @@ consolidate_data <- function(df,
                              relat_change = FALSE,
                              species_path = getwd()) {
 
+  library(data.table)
   #### remove unecessary rows ####
   t0 = Sys.time()
   df$status = c("D", "A")[1 + grepl("alive|broken", df$dfstatus)]
@@ -48,11 +49,11 @@ consolidate_data <- function(df,
   ## keep the most recent info
   df$treeid = as.character(df$treeid)
   treeinfo = df[order(year),
-                .(quadrat = last(quadrat[!is.na(quadrat)]),
+                list(quadrat = last(quadrat[!is.na(quadrat)]),
                   gx = last(gx[!is.na(gx)]),
                   gy = last(gy[!is.na(gy)]),
                   sp = last(sp[!is.na(sp)])),
-                .(treeid)]
+                by = treeid]
   df = merge(df[,-c("quadrat", "gx", "gy", "sp")], treeinfo, by = "treeid")
 
   #### add accepted species name ####

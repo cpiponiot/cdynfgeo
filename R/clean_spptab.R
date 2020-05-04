@@ -14,7 +14,9 @@ clean_spptab = function(path_spp = getwd()) {
   spptab = lapply(list_spp, open_FGEOdata)
   spptab = data.table::rbindlist(spptab, fill = TRUE)
 
-  spptab[!is.na(spcode)]$sp = spptab[!is.na(spcode)]$spcode
+  if (!is.null(spptab$spcode))
+    spptab[!is.na(spcode)]$sp = spptab[!is.na(spcode)]$spcode
+
   nalatin = which(!is.na(spptab$genus) & !is.na(spptab$species) & is.na(spptab$latin))
   spptab[nalatin]$latin = paste(spptab[nalatin]$genus, spptab[nalatin]$species)
   spptab = subset(spptab, latin != "")
