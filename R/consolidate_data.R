@@ -94,11 +94,11 @@ consolidate_data <- function(df,
     # apply stem matching and merge with df based on rowid
     df$rowid = (1:nrow(df))
     newstem = data.table(df)[treeid %in% need_stemmatch,
-                             .(
+                             list(
                                stemid2 = match_stems(dbhc, year, acc_decr, acc_incr, relat_change),
                                rowid = rowid
                              ),
-                             .(treeid)]
+                             treeid]
     df = merge(df,
                newstem,
                by = c("treeid", "rowid"),
@@ -119,8 +119,8 @@ consolidate_data <- function(df,
                   df$dbhc <= acc_incr * df$dt, c("stemid", "year")]
     several_breaks = TRUE
     if (several_breaks & nrow(broken) > 0) {
-      broken = data.table(broken)[, .(nbreak = paste0("break", 1:length(year)),
-                                      year = sort(year)), .(stemid)]
+      broken = data.table(broken)[, list(nbreak = paste0("break", 1:length(year)),
+                                      year = sort(year)), stemid]
       broken = dcast(broken, stemid ~ nbreak, value.var = "year")
       df = merge(df, broken, by = c("stemid"), all = TRUE)
       df$stemid[!is.na(df$break1) &
@@ -135,7 +135,7 @@ consolidate_data <- function(df,
                     df$year >= df$break3] = paste0(df$stemid[!is.na(df$break3) &
                                                                df$year >= df$break3], "b")
     } else if (nrow(broken) > 0) {
-      broken = data.table(broken)[, .(ybreak = min(year)), .(stemid)]
+      broken = data.table(broken)[, list(ybreak = min(year)), stemid]
       df = merge(df, broken, by = c("stemid"), all = TRUE)
       df$stemid[!is.na(df$ybreak) &
                   df$year >= df$ybreak] = paste0(df$stemid[!is.na(df$ybreak) &
@@ -162,8 +162,8 @@ consolidate_data <- function(df,
   if (add_missing) {
     t0 = Sys.time()
     # add missing measurements (all censuses between recruitment and death)
-    df_census = data.table(df)[, .(census = min(census):max(census)), .(stemid, site)]
-    df_census[, status := "A"]
+    df_census = data.table(df)[, list(census = min(census):max(census)), list(stemid, site)]
+    df_census$status = "A"
     # add dbh values (dbh = NA: stem missing)
     df_census = merge(df_census,
                       df[, c("stemid", "census", "dbhc")],
@@ -175,7 +175,7 @@ consolidate_data <- function(df,
 
     # interpolate missing dbhs
     setorder(df_census, year)
-    x = df_census[, .(dbhc = replace_missing(dbhc, year, dfgrowth), year), .(stemid)]
+    x = df_census[, list(dbhc = replace_missing(dbhc, year, dfgrowth), year), stemid]
     df = merge(df[,-which(colnames(df)=="dbhc")], x, by = c("stemid", "year"), all = TRUE)
     print("Interpolated DBH for missing trees.")
     if (print_time)
@@ -186,7 +186,7 @@ consolidate_data <- function(df,
   #### correct abnormal dbh changes ####
   if (correct_diam) {
     t0 = Sys.time()
-    df2 = data.table(df)[, .(
+    df2 = data.table(df)[, list(
       dbhcc = correct_dbh(
         dbh = dbhc,
         year = year,
@@ -200,7 +200,7 @@ consolidate_data <- function(df,
       ),
       year
     ),
-    .(stemid)]
+    stemid]
     df = merge(df, df2, by = c("stemid", "year"))
     df$dbhc = df$dbhcc
     df$dbhc[df$dbhc < 10] = NA
@@ -310,42 +310,42 @@ growth_stats = function(dbh,
   setorder(data, stemid, year)
   dataG = data[stemid %in% multi]
   if (relat_change) {
-    dataG = dataG[, .(dG = (dbh[-1] / dbh[-length(dbh)]) ^ (1 / diff(year)) -
+    dataG = dataG[, list(dG = (dbh[-1] / dbh[-length(dbh)]) ^ (1 / diff(year)) -
                         1,
                       year = year[-1]),
-                  .(stemid, name, genus, species, site)]
+                  list(stemid, name, genus, species, site)]
   } else {
-    dataG = dataG[, .(dG = diff(dbh) / diff(year), year = year[-1]),
-                  .(stemid, name, genus, species, site)]
+    dataG = dataG[, list(dG = diff(dbh) / diff(year), year = year[-1]),
+                  list(stemid, name, genus, species, site)]
   }
 
   dfnames = unique(data[, c("site", "name", "genus")])
 
   # species growth rate (>20 individual measurements)
-  dfspecies = dataG[!is.na(species), .(
+  dfspecies = dataG[!is.na(species), list(
     Gexp = median(dG),
     ## use median to minimise impact of measurement errors
     sdGexp = sd(dG),
     N = length(dG),
     level = "species"
   ),
-  .(site, genus, name)]
+  list(site, genus, name)]
   dfspecies = subset(dfspecies, N >= 20)[, -"N"]
 
   # genus growth rate (>20 individual measurements)
-  dfgenus = dataG[!is.na(genus), .(
+  dfgenus = dataG[!is.na(genus), list(
     Gexp = median(dG),
     sdGexp = sd(dG),
     N = length(dG),
     level = "genus"
   ),
-  .(genus)]
+  genus]
   dfgenus = subset(dfgenus, N >= 20)[, -"N"]
   dfgenus = merge(dfgenus, dfnames, by = "genus")
 
-  dfsite = dataG[, .(Gexp = median(dG),
+  dfsite = dataG[, list(Gexp = median(dG),
                      sdGexp = sd(dG),
-                     level = "site"), .(site)]
+                     level = "site"), site]
   dfsite = merge(dfsite, dfnames, by = "site")
 
   dfgrowth = merge(dfnames, rbind(dfspecies, dfgenus, dfsite), all = TRUE)
