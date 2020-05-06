@@ -2,15 +2,15 @@
 % Please edit documentation in R/boot_fgeo.R
 \name{boot_fgeo}
 \alias{boot_fgeo}
-\title{Bootstrap values to get median and confidence intervals}
+\title{Bootstrap values to get site-level estimates and 95\% confidence intervals}
 \usage{
 boot_fgeo(
   value,
   weight,
-  group,
   subplot,
   variable,
-  site,
+  group,
+  group2,
   year = NULL,
   dT = NULL,
   kohyama = NULL,
@@ -24,13 +24,13 @@ boot_fgeo(
 \item{weight}{Weight given to observations, as a numerical vector of same
 length as \code{value}.}
 
-\item{group}{Grouping factor.}
-
 \item{subplot}{Subplots observations belong to.}
 
 \item{variable}{Variables observations belong to.}
 
-\item{site}{Site(s) observations belong to.}
+\item{group}{Grouping factor (for example size).}
+
+\item{group2}{Additional grouping factor (for example site).}
 
 \item{year}{Year observations belong to. Default is \code{NULL}.}
 
@@ -50,5 +50,5 @@ applied).}
 A data frame with relevant variables.
 }
 \description{
-Bootstrap values to get median and confidence intervals
+Bootstrap values to get site-level estimates and 95\% confidence intervals
 }
