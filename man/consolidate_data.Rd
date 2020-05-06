@@ -15,32 +15,36 @@ consolidate_data(
   acc_decr = -5,
   acc_incr = 50,
   relat_change = FALSE,
-  species_path = "data/species/"
+  species_path = getwd(),
+  print_time = FALSE
 )
 }
 \arguments{
 \item{df}{A data.table obtained with the prepare_data() function.}
 
-\item{taper_correction}{\code{TRUE} (default) or \code{FALSE}, apply Cushman et al (2014) taper
-correction.}
+\item{taper_correction}{Logical value: should the taper correction from Cushman et al (2014) be applied? Default is \code{TRUE}.}
 
-\item{stem_matching}{\code{TRUE} (default) or \code{FALSE}, apply the stem matching script.}
+\item{stem_matching}{Logical value: should the stem matching script be applied? Default is \code{TRUE}.}
 
-\item{add_missing}{\code{TRUE} (default) or \code{FALSE}, interpolate missing stem measurements}
+\item{add_missing}{Logical value: should missing stem measurements be interpolated? Default is \code{TRUE}.}
 
-\item{correct_diam}{\code{TRUE} (default) or \code{FALSE}, should dbh errors (detected when dbh changes are
-outside the acceptable range) be corrected?}
+\item{correct_diam}{Logical value: should dbh errors (detected when dbh changes are
+outside the acceptable range) be corrected? Default is \code{TRUE}.}
 
-\item{step_corr}{\code{TRUE} (default) or \code{FALSE}, should step dbh changes be corrected?}
+\item{step_corr}{Logical value: should step dbh changes be corrected? Default is \code{TRUE}.}
 
-\item{acc_decr}{numeric: acceptable decrease between two censuses, as a proportion
-if relat_change is TRUE or in mm if relat_change is false}
+\item{acc_decr}{numeric value: acceptable decrease between two censuses, as a proportion
+if relat_change is TRUE or in mm if relat_change is false. Default is -5 mm/yr}
 
 \item{acc_incr}{numeric: acceptable annual increase, as a proportion (per year)
-if relat_change is TRUEor in mm/year if relat_change is false}
+if relat_change is TRUEor in mm/year if relat_change is false. Default is 35 mm/yr}
 
-\item{relat_change}{logical: should the decrease and increse values be relative
-(proportion of total dbh) or absolute values (in mm)?}
+\item{relat_change}{logical value: should the decrease and increse values be relative
+(proportion of total dbh) or absolute values (in mm)? Default is \code{FALSE}.}
+
+\item{species_path}{character string specifying the the directory in which the species tables are. Default is the current directory.}
+
+\item{print_time}{Logical value: should the running time be printed? Default is \code{FALSE}.}
 }
 \value{
 A data.table (data.frame) with all relevant variables.

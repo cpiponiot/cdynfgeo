@@ -13,7 +13,8 @@ Depends:
     R (>= 3.1)
 Imports: 
     taxize,
-    data.table (>= 1.12.8)
+    data.table (>= 1.12.8), 
+    truncnorm
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)

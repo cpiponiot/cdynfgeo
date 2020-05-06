@@ -16,11 +16,12 @@
 #'
 stand_dynamics = function(id,
                           var,
-                          dvar = NULL, 
+                          dvar = NULL,
                           year,
                           group = NULL,
                           plot = NULL,
                           site = NULL) {
+  library(data.table)
   df = data.table(id, var, dvar, year, group, plot, site)
   if (is.null(group))
     df[, group := 1]
@@ -28,25 +29,25 @@ stand_dynamics = function(id,
     df[, plot := 1]
   if (is.null(site))
     df[, site := 1]
-  
+
   df = subset(df,!is.na(var))
-  
+
   all_years = unique(df[, c("year", "site")])
   dyears = all_years[, .(year = c(NA, sort(year)),
                          nextyear = c(sort(year), NA)), .(site)]
   df = merge(df, dyears, by = c("site", "year"))
-  
+
   setorder(df, id, year)
   if (is.null(dvar))
     df[, dvar := c(diff(var) / diff(year), NA)]
 
   # last stem measurement: dvar = mortality
   df[, lastMeas := c(id[-1] != id[-nrow(df)], TRUE)]
-  df[(lastMeas), dvar := var / (nextyear - year)]  
-  
+  df[(lastMeas), dvar := var / (nextyear - year)]
+
   # gain and stocks
   dyn = df[, .(stock = sum(var), gain = sum(dvar[!lastMeas])), .(site, plot, group, year)]
-  
+
   # mortality
   mort = df[, .(
     var = last(var),
@@ -61,12 +62,12 @@ stand_dynamics = function(id,
               all.x = TRUE)
   dyn = merge(dyn, dyears, by = c("site", "year"), all.x = TRUE)
   dyn[is.na(loss) & !is.na(nextyear), loss := 0]
-  
+
   ## get all combinations of year * group per site
   combi = rbindlist(lapply(unique(df$site), function(s){
-    expand.grid(site = s, 
+    expand.grid(site = s,
                 plot = unique(df[site==s]$plot),
-                group = unique(df[site==s]$group), 
+                group = unique(df[site==s]$group),
                 year = unique(df[site==s]$year))
   }))
   dyn = merge(dyn, combi, by = c("site", "plot", "year", "group"), all = TRUE)
@@ -76,8 +77,8 @@ stand_dynamics = function(id,
   dyn[is.na(loss), loss := 0]
   dyn = merge(dyn[,-"nextyear"], dyears, by = c("site", "year"))
   dyn[is.na(nextyear), `:=`(gain=NA, loss=NA)]
-  
-  # remove unecessary columns  
+
+  # remove unecessary columns
   dyn[, nextyear := NULL]
   if (is.null(group))
     dyn[, group := NULL]
@@ -85,7 +86,7 @@ stand_dynamics = function(id,
     dyn[, plot := NULL]
   if (is.null(site))
     dyn[, site := NULL]
-  
+
   return(dyn)
 }
 
@@ -93,7 +94,7 @@ stand_dynamics = function(id,
 
 # load("temp_file.rda")
 # data = fgeo_data[site=="scbi"]
-# 
+#
 # id = data$stemid
 # var = rep(1, nrow(data))
 # year = data$year
