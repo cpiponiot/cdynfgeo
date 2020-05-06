@@ -1,11 +1,34 @@
+#' Bootstrap values to get median and confidence intervals
+#'
+#' @param value Data to be bootstraped, as a numerical vector.
+#' @param weight Weight given to observations, as a numerical vector of same
+#'   length as `value`.
+#' @param group Grouping factor.
+#' @param subplot Subplots observations belong to.
+#' @param variable Variables observations belong to.
+#' @param site Site(s) observations belong to.
+#' @param year Year observations belong to. Default is `NULL`.
+#' @param dT Time interval (years) between the current census (as in `year`) and
+#'   the next one.
+#' @param kohyama Name of variables to apply Kohyama correction (2019), should
+#'   be a vector of length 3 with name of stock variable, influx variable, and
+#'   outflux variable (in that order). Default is `NULL` (i.e. correction not
+#'   applied).
+#' @param nrep Default is 1000.
+#' @param para Default is `FALSE`.
+#'
+#' @return A data frame with relevant variables.
+#'
+#' @export
+#'
 boot_fgeo = function(value,
                      weight,
                      group,
                      subplot,
                      variable,
                      site,
-                     year = NULL, 
-                     dT = NULL, 
+                     year = NULL,
+                     dT = NULL,
                      kohyama = NULL,
                      nrep = 1000,
                      para = FALSE) {

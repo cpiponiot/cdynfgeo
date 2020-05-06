@@ -1,11 +1,16 @@
 #' Calculate aboveground biomass for ForestGEo sites
 #'
 #' @param dbh A vector of numerical values, containing all dbh measurements.
-#' @param wd A vector numeric values, containing wood density (same length as `dbh`).
+#' @param wd A vector numeric values, containing wood density (same length as
+#'   `dbh`).
 #' @param E A numerical value: environmental variable in Chave equation (2014)
-#' @param a A numerical vector (same size as `dbh`): first parameter in Chojnacky equations (intercept). If tropical site, use `NA`.
-#' @param b A numerical vector (same size as `dbh`): second parameter in Chojnacky equations (slope). If tropical site, use `NA`.
-#' @param carbon Should the function return values of aboveground carbon (instead of biomass)? Uses the conversion factor from Martin et al 2012. Default is `FALSE`.
+#' @param a A numerical vector (same size as `dbh`): first parameter in
+#'   Chojnacky equations (intercept). If tropical site, use `NA`.
+#' @param b A numerical vector (same size as `dbh`): second parameter in
+#'   Chojnacky equations (slope). If tropical site, use `NA`.
+#' @param carbon Should the function return values of aboveground carbon
+#'   (instead of biomass)? Uses the conversion factor from Martin et al 2012.
+#'   Default is `FALSE`.
 #'
 #' @return A vector of aboveground biomass (or carbon if `carbon = TRUE`).
 #'

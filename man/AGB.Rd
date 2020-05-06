@@ -9,15 +9,20 @@ AGB(dbh, wd, E, a, b, carbon = FALSE)
 \arguments{
 \item{dbh}{A vector of numerical values, containing all dbh measurements.}
 
-\item{wd}{A vector numeric values, containing wood density (same length as \code{dbh}).}
+\item{wd}{A vector numeric values, containing wood density (same length as
+\code{dbh}).}
 
 \item{E}{A numerical value: environmental variable in Chave equation (2014)}
 
-\item{a}{A numerical vector (same size as \code{dbh}): first parameter in Chojnacky equations (intercept). If tropical site, use \code{NA}.}
+\item{a}{A numerical vector (same size as \code{dbh}): first parameter in
+Chojnacky equations (intercept). If tropical site, use \code{NA}.}
 
-\item{b}{A numerical vector (same size as \code{dbh}): second parameter in Chojnacky equations (slope). If tropical site, use \code{NA}.}
+\item{b}{A numerical vector (same size as \code{dbh}): second parameter in
+Chojnacky equations (slope). If tropical site, use \code{NA}.}
 
-\item{carbon}{Should the function return values of aboveground carbon (instead of biomass)? Uses the conversion factor from Martin et al 2012. Default is \code{FALSE}.}
+\item{carbon}{Should the function return values of aboveground carbon
+(instead of biomass)? Uses the conversion factor from Martin et al 2012.
+Default is \code{FALSE}.}
 }
 \value{
 A vector of aboveground biomass (or carbon if \code{carbon = TRUE}).

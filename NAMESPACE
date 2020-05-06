@@ -2,6 +2,7 @@
 
 export(AGB)
 export(Cdynamics)
+export(boot_fgeo)
 export(clean_spptab)
 export(consolidate_data)
 export(correct_dbh)
