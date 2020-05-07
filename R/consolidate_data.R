@@ -31,7 +31,7 @@ consolidate_data <- function(df,
                              acc_decr = -5,
                              acc_incr = 50,
                              relat_change = FALSE,
-                             species_path = "",
+                             species_path = getwd(),
                              print_time = FALSE) {
   library(data.table)
   #### remove unecessary rows ####
@@ -93,7 +93,7 @@ consolidate_data <- function(df,
                                         duplicated(df$stemYearID)])
     # apply stem matching and merge with df based on rowid
     df$rowid = (1:nrow(df))
-    ls_stems = split(data.table(df)[treeid %in% need_stemmatch], by = "treeid")
+    ls_stems = split(subset(data.table(df), treeid %in% need_stemmatch), by = "treeid")
     new_stemid = rbindlist(lapply(ls_stems, function(dm){
       stemN = match_stems(
         dbh = dm$dbhc,
