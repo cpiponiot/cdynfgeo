@@ -15,7 +15,7 @@ consolidate_data(
   acc_decr = -5,
   acc_incr = 50,
   relat_change = FALSE,
-  species_path = "",
+  species_path = getwd(),
   print_time = FALSE
 )
 }

@@ -178,7 +178,7 @@ consolidate_data <- function(df,
     # interpolate missing dbhs
     setorder(df_census, year)
     x = df_census[, list(dbhc = replace_missing(dbhc, year, dfgrowth), year), stemid]
-    df = merge(df[, -which(colnames(df) == "dbhc")], x, by = c("stemid", "year"), all = TRUE)
+    df = merge(data.table(df)[, -which(colnames(df) == "dbhc"), with = FALSE], x, by = c("stemid", "year"), all = TRUE)
     print("Interpolated DBH for missing trees.")
     if (print_time)
       print(round(Sys.time() - t0, 1))
@@ -226,7 +226,7 @@ consolidate_data <- function(df,
            "dbhc",
            "dbhtc",
            "dbhcc")
-  df2 = df[, which(colnames(df) %in% cols)]
+  df2 = data.frame(df)[, which(colnames(df) %in% cols)]
   df = merge(df_tree, df2, by = "treeid")
 
   return(df)
