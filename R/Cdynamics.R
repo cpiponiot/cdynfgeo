@@ -23,6 +23,7 @@
 #' @param b A numerical vector (same size as `dbh`): second parameter in
 #'   Chojnacky equations (slope). If tropical site, use `NA`.
 #' @param plot_area Area of subplots (in ha). Default is `1`.
+#' @param Ddbh_range Vector of length 2: ange of acceptable DBH change (in cm). Default is c(-Inf, Inf) (ie no correction).
 #'
 #' @return A data.table (data.frame) with the following columns: `plot` and
 #'   `year` and `size` as provided in the function inputs; `variable`: `N`
@@ -47,7 +48,8 @@ Cdynamics = function(dbh,
                      E,
                      a,
                      b,
-                     plot_area = 1) {
+                     plot_area = 1,
+                     Ddbh_range = c(-Inf, Inf)) {
   library(data.table)
 
   df = data.table(dbh, size, agb, year, stemid, hom, wd, plot, group, E, a, b)
@@ -67,8 +69,13 @@ Cdynamics = function(dbh,
   df[, dHOM := (!is.na(dHOM) & dHOM != 0)]
   # when change in HOM: substitute with NA (substituted in the function below)
   # mean dbh change by site and size class
+  ## DEBUG (if needed)
+  # browser()
+  # df[, .(
+  #   pars = substitute_change(varD = Ddbh, hom_change = dHOM, value = "debug")
+  # ), size]
   df[, `:=`(
-    Ddbh = substitute_change(varD = Ddbh, hom_change = dHOM),
+    Ddbh = substitute_change(varD = Ddbh, hom_change = dHOM, cut = Ddbh_range),
     Dagb = substitute_change(
       D = dbh,
       varD = Ddbh,
@@ -77,7 +84,8 @@ Cdynamics = function(dbh,
       E = unique(E),
       a = a,
       b = b,
-      value = "AGB"
+      value = "AGB",
+      cut = Ddbh_range
     )
   ),
   size]
@@ -192,10 +200,13 @@ substitute_change = function(varD,
   mu = mean(transf_values)
   sigma = sd(transf_values)
 
+  if (value == "debug")
+    return(c(mu, sigma))
+
   if (value == "D") {
     diffModD = function(x)
       modulus(x, 1 / lambda) * dnorm(x, mu, sigma)
-    varD[change_values] = integrate(diffModD,-Inf, Inf)$value
+    varD[change_values] = integrate(diffModD, -Inf, Inf)$value
     return(varD)
   }
 

@@ -38,12 +38,6 @@ prepare_data <- function(path,
 
   print(paste("Preparing", site, "data."))
   data("site_info")
-  # load packages (and install the ones are not yet installed)
-  # do not show package loading messages
-  if (!suppressMessages(require(data.table))) {
-    install.packages("data.table")
-    suppressMessages(require(data.table))
-  }
 
   # check that the site is the list of ForestGEO sites
   site <- tolower(site)
@@ -92,6 +86,10 @@ prepare_data <- function(path,
 
   # numeric columns
   DT$dbh = as.numeric(as.character(DT$dbh))
+  if (is.null(DT$gx) & !is.null(DT$px)) {
+    DT$gx = DT$px
+    DT$gy = DT$py
+  }
   DT$gx = as.numeric(as.character(DT$gx))
   DT$gy = as.numeric(as.character(DT$gy))
 
@@ -104,14 +102,32 @@ prepare_data <- function(path,
   }
 
   # get mean year of census from exactdate
+  if (is.null(DT$exactdate) & length(grep("date", colnames(DT))) == 1)
+    DT$exactdate = data.frame(DT)[, grep("date", colnames(DT))]
   DT$exactdate = as.character(DT$exactdate) ## convert to always have characters
 
-  # calculate census year
-  census_year = tapply(DT$exactdate, DT$census, get_census_year)
-  census_year = data.frame(census = as.numeric(names(census_year)), year = census_year)
-  DT = merge(DT, census_year, by = "census")
+  # calculate census year (per quadrat if info is available)
+  if (!is.null(DT$quadrat)) {
+    DT$quadrat = as.character(DT$quadrat)
+    cq_year = tapply(DT$exactdate, paste(DT$census, DT$quadrat), get_census_year)
+    cq_year = data.frame(census_quadrat = names(cq_year), year = cq_year)
+    cq_year$census = as.numeric(data.table::tstrsplit(cq_year$census_quadrat, " ")[[1]])
+    cq_year$quadrat = data.table::tstrsplit(cq_year$census_quadrat, " ")[[2]]
+    ## complete for quadrat with missing dates:
+    census_year = tapply(DT$exactdate, DT$census, get_census_year)
+    census_year = data.frame(census = as.numeric(names(census_year)), mean_year = census_year)
+    cq_year = merge(cq_year, census_year, by = "census")
+    cq_year$year[is.na(cq_year$year)] = cq_year$mean_year[is.na(cq_year$year)]
+    DT = merge(DT, cq_year[, c("census", "quadrat", "year")], by = c("census", "quadrat"))
+  } else  {
+    census_year = tapply(DT$exactdate, DT$census, get_census_year)
+    census_year = data.frame(census = as.numeric(names(census_year)), year = census_year)
+    DT = merge(DT, census_year, by = "census")
+  }
 
-  # empty DFstatus
+  # fill empty DFstatus
+  if (is.null(DT$dfstatus) & length(grep("status", colnames(DT))) == 1)
+    DT$dfstatus = data.frame(DT)[, grep("status", colnames(DT))]
   if (length(grep("status", colnames(DT)))==0)
     DT$dfstatus = c("alive","dead")[is.na(DT$dbh)+1]
 
@@ -138,6 +154,8 @@ prepare_data <- function(path,
   # spcode instead of sp
   if (sum(colnames(DT)=='sp')==0 & length(DT$spcode) > 0)
     DT$sp = DT$spcode
+  if (sum(colnames(DT)=='sp')==0 & length(DT$mnemonic) > 0)
+    DT$sp = DT$mnemonic
 
   # change all "" with NA in stem tags
   DT$stemtag[DT$stemtag == ""] = NA
@@ -155,55 +173,3 @@ prepare_data <- function(path,
 #' @return A numeric vector with census years
 #' @export
 #'
-get_census_year = function(date) {
-
-  # remove hours
-  split_date = data.table::tstrsplit(date, " ")[[1]]
-
-  # separate year, month and day
-  split_date = data.table::tstrsplit(split_date, "-|/")
-
-  # the one in the middle cannot be the year
-  split_date = list(split_date[[1]], split_date[[3]])
-
-  split_date = lapply(split_date, as.numeric)
-
-  ## remove empty dates (zeros)
-  zeros = which(split_date[[1]]==0 & split_date[[2]]==0)
-  if (length(zeros) > 0)
-    split_date = lapply(split_date, function(x) x[-zeros])
-
-  # because they are not always in the same order (depending on the site),
-  # and the year is in different formats (2 or 4 digits)
-  # we chose the value > 31 when there is one,
-  # or the value with the smallest range across tree measurements
-
-  if (any(split_date[[1]] > 31, na.rm = TRUE)) {
-    year = split_date[[1]]
-  } else if (any(split_date[[2]] > 31, na.rm = TRUE)) {
-    year = split_date[[2]]
-  } else {
-    range1 = diff(range(split_date[[1]], na.rm = TRUE))
-    range2 = diff(range(split_date[[2]], na.rm = TRUE))
-
-    if ((range1 > 2 & range2 > 2) | range1 == range2)
-      stop("There is a problem with the date format.")
-
-    year = split_date[[which.min(c(range1, range2))]]
-  }
-
-  ## if census year has less than 4 digits: add 19- or 20-
-  if (all(year < 100, na.rm = TRUE))   {
-    add_1900 = which(!is.na(year) & year >= 50)
-    add_2000 = which(!is.na(year) & year < 50)
-    year[add_1900] = 1900 + year[add_1900]
-    year[add_2000] = 2000 + year[add_2000]
-  }
-
-  census_year = round(mean(year, na.rm = TRUE))
-
-
-  return(census_year)
-
-}
-

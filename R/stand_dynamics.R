@@ -32,10 +32,10 @@ stand_dynamics = function(id,
 
   df = subset(df,!is.na(var))
 
-  all_years = unique(df[, c("year", "site")])
+  all_years = unique(df[, c("year", "site", "plot")])
   dyears = all_years[, .(year = c(NA, sort(year)),
-                         nextyear = c(sort(year), NA)), .(site)]
-  df = merge(df, dyears, by = c("site", "year"))
+                         nextyear = c(sort(year), NA)), .(site, plot)]
+  df = merge(df, dyears, by = c("site", "plot", "year"))
 
   setorder(df, id, year)
   if (is.null(dvar))
@@ -54,13 +54,13 @@ stand_dynamics = function(id,
     year = last(year),
     group = last(group)
   ), .(id, site, plot)]
-  mort = merge(mort, dyears, by = c("site", "year"))
+  mort = merge(mort, dyears, by = c("site", "plot", "year"))
   mort[, mort := var / (nextyear - year)]
   df_loss = mort[, .(loss = sum(mort)), .(site, plot, group, year, nextyear)]
   dyn = merge(dyn, df_loss[,-"nextyear"],
               by = c("site", "plot", "group", "year"),
               all.x = TRUE)
-  dyn = merge(dyn, dyears, by = c("site", "year"), all.x = TRUE)
+  dyn = merge(dyn, dyears, by = c("site", "plot", "year"), all.x = TRUE)
   dyn[is.na(loss) & !is.na(nextyear), loss := 0]
 
   ## get all combinations of year * group per site
@@ -75,7 +75,7 @@ stand_dynamics = function(id,
   dyn[is.na(stock), stock := 0]
   dyn[is.na(gain), gain := 0]
   dyn[is.na(loss), loss := 0]
-  dyn = merge(dyn[,-"nextyear"], dyears, by = c("site", "year"))
+  dyn = merge(dyn[,-"nextyear"], dyears, by = c("site", "plot", "year"))
   dyn[is.na(nextyear), `:=`(gain=NA, loss=NA)]
 
   # remove unecessary columns

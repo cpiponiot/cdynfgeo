@@ -53,28 +53,35 @@ consolidate_data <- function(df,
   ## keep the most recent info
   df$treeid = as.character(df$treeid)
   df = df[order(df$year, decreasing = TRUE), ]
-  treeinfo = unique(df[, c("treeid", "quadrat", "gx", "gy", "sp")])
+  treeinfo = unique(data.frame(df)[, which(colnames(df) %in% c("treeid", "quadrat", "gx", "gy", "sp"))])
   treeinfo = treeinfo[!duplicated(treeinfo$treeid), ]
   df = merge(data.frame(df)[, which(!colnames(df) %in% c("quadrat", "gx", "gy", "sp"))], treeinfo, by = "treeid")
 
   #### add accepted species name ####
-  if (!("species_clean.rda" %in% list.files(species_path))) {
-    # get clean version of species table (no typo nor duplicate species code)
-    species = clean_spptab(species_path)
-    save(species, file = paste0(species_path, "/species_clean.rda"))
-  } else
-    load(paste0(species_path, "/species_clean.rda"))
-  df = merge(df, species, by = c("sp", "site"), all.x = TRUE)
-  # df[, genus := tstrsplit(name, " ")[[1]]]
-  # df[, species := tstrsplit(name, " ")[[2]]]
-  print("Added species name.")
-  if (print_time)
-    print(round(Sys.time() - t0, 1))
-  t0 = Sys.time()
+  if (is.null(df$name)) {
+    if (!("species_clean.rda" %in% list.files(species_path))) {
+      # get clean version of species table (no typo nor duplicate species code)
+      species = clean_spptab(species_path)
+      save(species, file = paste0(species_path, "/species_clean.rda"))
+    } else
+      load(paste0(species_path, "/species_clean.rda"))
+    df = merge(df, species, by = c("sp", "site"), all.x = TRUE)
+    # df[, genus := tstrsplit(name, " ")[[1]]]
+    # df[, species := tstrsplit(name, " ")[[2]]]
+    print("Added species name.")
+    if (print_time)
+      print(round(Sys.time() - t0, 1))
+    t0 = Sys.time()
+  }
 
   #### taper correction ####
   df$dbhc = df$dbh # dbhc: corrected dbh
   if (taper_correction) {
+    ## some hom in cm instead of m
+    df$hom[df$hom > 25 & !is.na(df$hom)] = df$hom[df$hom > 25 & !is.na(df$hom)]/100
+    ## some outliers (boundaries defined based on this graph: ggplot(df[hom<25], aes(x = dbh, y = hom))+geom_point()+geom_abline(intercept = 5, slope = 0.01))
+    df$hom[df$hom < 25 & df$hom > df$dbh/100 + 5 & !is.na(df$hom)] =
+      df$hom[df$hom < 25 & df$hom > df$dbh/100 + 5 & !is.na(df$hom)]/10
     df$dbhtc = taper(df$dbh, df$hom)
     df$dbhc = df$dbhtc
     print("Applied taper correction.")
@@ -84,64 +91,53 @@ consolidate_data <- function(df,
     # add uncertainty on dbh measurement to propagate later
   }
 
-  #### match stems - creates new stem ID ####
+  data.table::setDT(df)
+
   if (stem_matching) {
-    df$stemid = paste(df$treeid, df$stemtag, sep = "_")
-    df$stemYearID[!is.na(df$stemid)] = paste(df$treeid, df$stemid, df$year, sep = "_")[!is.na(df$stemid)]
+    df[, stemid := paste(treeid, stemtag, sep = "_")]
+    df[!is.na(stemid), stemYearID := paste(treeid, stemid, year, sep = "_")]
     # determine which stems need matching: no stem tag or duplicated stem tag
-    need_stemmatch = unique(df$treeid[is.na(df$stemtag) |
-                                        duplicated(df$stemYearID)])
+    need_stemmatch = unique(df[is.na(stemtag) |
+                                 duplicated(stemYearID), treeid])
     # apply stem matching and merge with df based on rowid
-    df$rowid = (1:nrow(df))
-    ls_stems = split(subset(data.table(df), treeid %in% need_stemmatch), by = "treeid")
-    new_stemid = rbindlist(lapply(ls_stems, function(dm){
-      stemN = match_stems(
-        dbh = dm$dbhc,
-        year = dm$year,
-        acc_decr = acc_decr,
-        acc_incr = acc_incr,
-        relat_change = relat_change
-      )
-      dm$stemid = paste(dm$treeid, stemN, sep="_")
-      return(dm)
-    }))
-    df = rbind(subset(df, !(treeid %in% need_stemmatch)), new_stemid)
+    df[, rowid := (1:nrow(df))]
+    newstem = df[treeid %in% need_stemmatch,
+                 .(
+                   stemid2 = match_stems(dbhc, year, acc_decr, acc_incr, relat_change),
+                   rowid = rowid
+                 ),
+                 .(treeid)]
+    df = merge(df,
+               newstem,
+               by = c("treeid", "rowid"),
+               all = TRUE)
+    df[treeid %in% need_stemmatch, stemid := paste(treeid, stemid2, sep =
+                                                     "_")]
     print("Matched stems in multistem individuals (in column stemid).")
-    if (print_time)
-      print(round(Sys.time() - t0, 1))
+    print(round(Sys.time() - t0, 1))
     t0 = Sys.time()
 
     ## broken below: new stem id (add 'b' at the end for all subsequent censuses)
     setorder(df, stemid, year)
     # time interval between censuses (to detect overgrown resprouts)
-    df$dt = c(NA, diff(df$year))
-    df$dt[c(NA, df$stemid[-length(df$stemid)]) != c(NA, df$stemid[-1])] = NA
+    df[, dt := c(NA, diff(year))]
+    df[c(NA, stemid[-length(stemid)])!= c(NA, stemid[-1]), dt := NA]
     # real resprouts:
-    broken = df[df$codes == "R" &
-                  df$dbhc <= acc_incr * df$dt, c("stemid", "year")]
+    broken = df[codes == "R" & dbhc <= acc_incr*dt, c("stemid", "year")]
     several_breaks = TRUE
     if (several_breaks & nrow(broken) > 0) {
-      broken = data.table(broken)[, list(nbreak = paste0("break", 1:length(year)),
-                                         year = sort(year)), stemid]
+      broken = broken[, .(nbreak = paste0("break", 1:length(year)), year = sort(year)), .(stemid)]
       broken = dcast(broken, stemid ~ nbreak, value.var = "year")
       df = merge(df, broken, by = c("stemid"), all = TRUE)
-      df$stemid[!is.na(df$break1) &
-                  df$year >= df$break1] = paste0(df$stemid[!is.na(df$break1) &
-                                                             df$year >= df$break1], "b")
+      df[!is.na(break1) & year >= break1, stemid := paste0(stemid, "b")]
       if (!is.null(df$break2))
-        df$stemid[!is.na(df$break2) &
-                    df$year >= df$break2] = paste0(df$stemid[!is.na(df$break2) &
-                                                               df$year >= df$break2], "b")
+        df[!is.na(break2) & year >= break2, stemid := paste0(stemid, "b")]
       if (!is.null(df$break3))
-        df$stemid[!is.na(df$break3) &
-                    df$year >= df$break3] = paste0(df$stemid[!is.na(df$break3) &
-                                                               df$year >= df$break3], "b")
+        df[!is.na(break3) & year >= break3, stemid := paste0(stemid, "b")]
     } else if (nrow(broken) > 0) {
-      broken = data.table(broken)[, list(ybreak = min(year)), stemid]
+      broken = broken[, .(ybreak = min(year)), .(stemid)]
       df = merge(df, broken, by = c("stemid"), all = TRUE)
-      df$stemid[!is.na(df$ybreak) &
-                  df$year >= df$ybreak] = paste0(df$stemid[!is.na(df$ybreak) &
-                                                             df$year >= df$ybreak], "b")
+      df[!is.na(ybreak) & year >= ybreak, stemid := paste0(stemid, "b")]
     }
   }
 
@@ -164,7 +160,7 @@ consolidate_data <- function(df,
   if (add_missing) {
     t0 = Sys.time()
     # add missing measurements (all censuses between recruitment and death)
-    df_census = data.table(df)[, list(census = min(census):max(census)), list(stemid, site)]
+    df_census = data.table(df)[, list(census = min(census):max(census)), list(stemid, treeid, site, quadrat)]
     df_census$status = "A"
     # add dbh values (dbh = NA: stem missing)
     df_census = merge(df_census,
@@ -172,13 +168,17 @@ consolidate_data <- function(df,
                       by = c("stemid", "census"),
                       all = TRUE)
     # complete with census year
-    census_year = unique(df[, c("site", "census", "year")])
-    df_census = merge(df_census, census_year , by = c("site", "census"))
+    census_year = unique(df[, c("site", "census", "quadrat", "year")])
+    ##some censuses in between 2 years: take latest
+    census_year = data.table::setDT(census_year)
+    census_year = census_year[, .(year=max(year)), .(site, census, quadrat)]
+    df_census = merge(df_census, census_year , by = c("site", "quadrat", "census"))
 
     # interpolate missing dbhs
     setorder(df_census, year)
-    x = df_census[, list(dbhc = replace_missing(dbhc, year, dfgrowth), year), stemid]
-    df = merge(data.table(df)[, -which(colnames(df) == "dbhc"), with = FALSE], x, by = c("stemid", "year"), all = TRUE)
+    x = df_census[, .(dbhc = replace_missing(dbhc, year, dfgrowth), year, census, treeid), stemid]
+    common_cols = colnames(df)[(colnames(df) %in% colnames(x)) & !(colnames(df) %in% c("stemid", "year"))]
+    df = merge(data.table(df)[, -common_cols, with = FALSE], x, by = c("stemid", "year"), all = TRUE)
     print("Interpolated DBH for missing trees.")
     if (print_time)
       print(round(Sys.time() - t0, 1))
@@ -213,20 +213,21 @@ consolidate_data <- function(df,
   }
 
   # #### merge tree and census info ####
-  df_tree = df[, c("site", "quadrat", "treeid", "gx", "gy",
-                   "sp", "name", "taxo")]
-  df_tree = subset(df_tree,!is.na(sp))
+  df_tree = df[, colnames(df) %in% c("site", "quadrat", "treeid",
+                                     "gx", "gy", "sp", "name", "taxo"), with = FALSE]
+  if ("sp" %in% colnames(df)) df_tree = subset(df_tree, !is.na(sp))
   df_tree = unique(df_tree)
 
   cols = c("treeid",
            "stemid",
            "year",
+           "census",
            "hom",
            "dbh",
            "dbhc",
            "dbhtc",
            "dbhcc")
-  df2 = data.frame(df)[, which(colnames(df) %in% cols)]
+  df2 = df[, which(colnames(df) %in% cols), with = FALSE]
   df = merge(df_tree, df2, by = "treeid")
 
   return(df)
@@ -234,20 +235,15 @@ consolidate_data <- function(df,
 
 
 taper <- function(dbh, hom, wsg = NULL) {
-  hom[is.na(hom)] = 1.3
-  # dbh <- round(dbh * exp(0.0247 * (hom - 1.3)), 1)
+  hom[is.na(hom) | hom < 1.3] = 1.3
   # new Cushman multisite equation
-  # DAB: diameter above buttress / same as dbh?
   if (is.null(wsg)) {
     b1 <- exp(-0.825 - 0.458 * log(dbh / 10) - 0.663 * log(hom))
   } else {
     b1 <-
       exp(-0.769 - 0.546 * log(dbh / 10) - 0.630 * log(hom) - 0.436 * log(wsg))
   }
-  # b1 = -0.825 + -0.458*log(DAB) -0.663*log(HOM)
   dbhc <- round(dbh * exp(b1 * (hom - 1.3)), 1)
-  # add uncertainty -> uncertainty on dbh -> error propagation in AGBmontecarlo
-  # change hom to 1.3?
   return(dbhc)
 }
 

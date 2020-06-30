@@ -29,7 +29,7 @@ clean_spptab = function(path_spp = getwd()) {
   spptab$species = data.table::tstrsplit(spptab$species, " ")[[1]]
 
   # remove undetermined species
-  spptab[spptab$species %in% c("sp.", "spp.", "sp")]$species = ""
+  spptab[spptab$species %in% c("sp.", "spp.", "sp", "unkn")]$species = ""
   spptab[grep("[1-9]", species)]$species = ""
   spptab = subset(spptab,!grepl("nident", genus))
 
@@ -41,9 +41,33 @@ clean_spptab = function(path_spp = getwd()) {
   spptab[sp == "GONSPI"]$name = "Gonzalagunia hirsuta"
 
   # find species accepted names and correct typos
-  temp = taxize::tnrs(query = unique(spptab$name), source = "ncbi")
+  taxoInfo = list()
+  lname = split(unique(spptab$name), ceiling(seq_along(unique(spptab$name))/20))
+  for (i in 1:length(lname)) {
+    temp = try(taxize::tnrs(query = lname[[i]], source = "ncbi"), TRUE)
+    if(isTRUE(class(temp)=="try-error")) { next } else {
+      taxoInfo = rbind(taxoInfo, temp[, c("submittedname", "acceptedname")])
+      print(paste0(i, "/", length(lname), " done"))
+    }
+  }
+  taxoInfo$submittedname = gsub("\r", "", taxoInfo$submittedname)
+  ## taxo that gave errors (are not in taxoInfo yet)
+  missing = unique(spptab$name)[!unique(spptab$name) %in% taxoInfo$submittedname]
+  ## 1 by 1
+  for (i in 1:length(missing)) {
+    temp = try(taxize::tnrs(query = missing[i], source = "ncbi"), TRUE)
+    if (isTRUE(class(temp)=="try-error") | length(temp) == 0) { next } else {
+      taxoInfo = rbind(taxoInfo, temp[, c("submittedname", "acceptedname")])
+      print(paste0(i, "/", length(missing), " done"))
+    }
+  }
+  taxoInfo$submittedname = gsub("\r", "", taxoInfo$submittedname)
+  missing = unique(spptab$name)[!unique(spptab$name) %in% taxoInfo$submittedname]
+  taxoInfo = rbind(taxoInfo, data.frame(submittedname = missing, acceptedname = missing))
+  taxoInfo = unique(taxoInfo)
+
   spptab = merge(spptab,
-                 temp[, c("submittedname", "acceptedname")],
+                 taxoInfo,
                  by.x = "name",
                  by.y = "submittedname",
                  all.x = TRUE)

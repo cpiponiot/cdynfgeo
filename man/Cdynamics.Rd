@@ -18,7 +18,8 @@ Cdynamics(
   E,
   a,
   b,
-  plot_area = 1
+  plot_area = 1,
+  Ddbh_range = c(-Inf, Inf)
 )
 }
 \arguments{
@@ -56,6 +57,8 @@ Chojnacky equations (intercept). If tropical site, use \code{NA}.}
 Chojnacky equations (slope). If tropical site, use \code{NA}.}
 
 \item{plot_area}{Area of subplots (in ha). Default is \code{1}.}
+
+\item{Ddbh_range}{Vector of length 2: ange of acceptable DBH change (in cm). Default is c(-Inf, Inf) (ie no correction).}
 }
 \value{
 A data.table (data.frame) with the following columns: \code{plot} and
